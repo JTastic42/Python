@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weight Plate Calculator</title>
+    <meta name="description" content="Calculate the weight plates needed for your target weight with our easy-to-use Weight Plate Calculator.">
+    <script>
+        function toggleHistory() {
+            const historyContent = document.getElementById('historyContent');
+            const toggleBtn = document.getElementById('toggleHistory');
+            if (historyContent.classList.contains('hidden')) {
+                historyContent.classList.remove('hidden');
+                toggleBtn.textContent = 'Hide History';
+            } else {
+                historyContent.classList.add('hidden');
+                toggleBtn.textContent = 'Show History';
+            }
+        }
+    </script>
+    <meta name="keywords" content="weight plate calculator, gym, fitness, weightlifting, plates">
+    <meta name="author" content="James DeSpain">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-500 to-blue-900 text-white p-4 md:p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl md:text-4xl font-bold text-center mb-8">Weight Plate Calculator</h1>
+        
+        <form method="POST" class="flex flex-col md:flex-row gap-2 justify-center mb-8">
+            <input type="number" name="weight" step="0.1" required 
+                   class="p-2 rounded-lg text-black w-full md:w-48">
+            <button type="submit" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                Calculate
+            </button>
+        </form>
+
+        {% if result %}
+            {% if result.error %}
+                <p class="text-red-300 text-center p-4">{{ result.error }}</p>
+            {% else %}
+                <div class="bg-white/10 rounded-lg p-6 backdrop-blur-sm mb-8">
+                    <h2 class="text-2xl font-bold mb-4">Results:</h2>
+                    <p class="mb-2">Target Weight: {{ result.target_weight }} lbs</p>
+                    <p class="mb-4">Actual Weight: {{ result.actual_weight }} lbs</p>
+                    <h3 class="text-xl font-bold mb-2">Plates needed on each side:</h3>
+                    <ul class="space-y-2">
+                    {% if result.plates %}
+                        {% for weight, count in result.plates.items() %}
+                        <li class="bg-white/5 p-2 rounded">{{ count }}x {{ weight }} lbs</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>No plates available</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endif %}
+
+        {% if history %}
+            <div class="bg-white/10 rounded-lg p-6 backdrop-blur-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">History:</h2>
+                    <button id="toggleHistory" onclick="toggleHistory()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-lg transition-colors">
+                        Hide History
+                    </button>
+                </div>
+                <div id="historyContent">
+                    <ul class="space-y-2">
+                    {% for calc in history %}
+                        <li class="bg-white/5 p-2 rounded">
+                            {{ calc.actual_weight }} lbs - Plates: {{ calc.plate_description }}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
