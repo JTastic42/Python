@@ -7,7 +7,7 @@ def get_weight():
     and can contain one decimal place (only 0 or 5 is allowed after the decimal point)."""
     while True:
         try:
-            user_input = input("Please enter the desired weight for the exercise.: ")
+            user_input = input("Please enter the desired total weight (including 45lb barbell): ")
 
             # Check if the input is numeric and can be converted to float
             weight = float(user_input)
@@ -40,19 +40,35 @@ def get_weight():
 def calculate_plates(target_weight):
     """
     Calculate the minimum number of plates needed to achieve the target weight.
+    Assumes a 45lb barbell as the starting weight.
     
     Args:
-        target_weight (float): The desired weight to achieve
+        target_weight (float): The desired total weight to achieve
         
     Returns:
         dict: Contains plate breakdown, actual weight achieved, and whether exact match
     """
+    # Standard barbell weight
+    barbell_weight = 45.0
+    
+    # Check if target weight is less than barbell weight
+    if target_weight < barbell_weight:
+        return {
+            'plate_counts': {45: 0, 25: 0, 10: 0, 5: 0, 2.5: 0},
+            'actual_weight': barbell_weight,
+            'target_weight': target_weight,
+            'exact_match': False,
+            'total_plates': 0,
+            'barbell_weight': barbell_weight,
+            'plate_weight': 0
+        }
+    
     # Available plate weights (in descending order for greedy algorithm)
     plate_weights = [45, 25, 10, 5, 2.5]
     
     # Initialize plate counts
     plate_counts = {weight: 0 for weight in plate_weights}
-    remaining_weight = target_weight
+    remaining_weight = target_weight - barbell_weight
     
     # Greedy algorithm: use largest plates first
     for plate_weight in plate_weights:
@@ -62,8 +78,9 @@ def calculate_plates(target_weight):
             remaining_weight -= count * plate_weight
             remaining_weight = round(remaining_weight, 1)  # Handle floating point precision
     
-    # Calculate actual weight achieved
-    actual_weight = sum(count * weight for weight, count in plate_counts.items())
+    # Calculate plate weight and total weight achieved
+    plate_weight = sum(count * weight for weight, count in plate_counts.items())
+    actual_weight = barbell_weight + plate_weight
     
     # Check if we achieved exact match
     exact_match = abs(actual_weight - target_weight) < 0.01
@@ -73,7 +90,9 @@ def calculate_plates(target_weight):
         'actual_weight': actual_weight,
         'target_weight': target_weight,
         'exact_match': exact_match,
-        'total_plates': sum(plate_counts.values())
+        'total_plates': sum(plate_counts.values()),
+        'barbell_weight': barbell_weight,
+        'plate_weight': plate_weight
     }
 
 
@@ -97,16 +116,23 @@ def display_results(result):
         difference = result['actual_weight'] - result['target_weight']
         print(f"✗ Difference: {difference:+.1f} lbs")
     
-    print(f"\nTotal Plates Needed: {result['total_plates']}")
-    print("\nPlate Breakdown:")
-    print("-" * 25)
+    print(f"\nBarbell Weight: {result['barbell_weight']} lbs")
+    print(f"Plate Weight: {result['plate_weight']} lbs")
+    print(f"Total Plates Needed: {result['total_plates']}")
     
-    for weight, count in result['plate_counts'].items():
-        if count > 0:
-            total_weight = weight * count
-            print(f"{weight:4.1f} lb plates: {count:2d} × {weight:4.1f} = {total_weight:5.1f} lbs")
+    if result['total_plates'] > 0:
+        print("\nPlate Breakdown:")
+        print("-" * 25)
+        
+        for weight, count in result['plate_counts'].items():
+            if count > 0:
+                total_weight = weight * count
+                print(f"{weight:4.1f} lb plates: {count:2d} × {weight:4.1f} = {total_weight:5.1f} lbs")
+        
+        print("-" * 25)
+    else:
+        print("\nNo additional plates needed - barbell weight only!")
     
-    print("-" * 25)
     print(f"Total Weight: {result['actual_weight']} lbs")
 
 
@@ -140,6 +166,7 @@ def main():
     """
     print("Welcome to the Gym Plate Calculator!")
     print("This tool helps you find the minimum plates needed for your target weight.")
+    print("Includes 45lb barbell as starting weight.")
     print("Available plates: 45, 25, 10, 5, and 2.5 lbs\n")
     
     while True:
