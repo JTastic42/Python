@@ -1,44 +1,45 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import ResultDisplay from './components/ResultDisplay';
+import WorkoutLoggerForm from './components/WorkoutLogger';
+import WorkoutHistory from './components/WorkoutHistory';
+import { formatWeight, validateWeight, lbsToKg, kgToLbs } from './utils/weightUtils';
+import { 
+  PLATE_WEIGHTS_LBS, 
+  PLATE_WEIGHTS_KG, 
+  BARBELL_OPTIONS, 
+  WEIGHT_INCREMENT_LBS, 
+  WEIGHT_INCREMENT_KG,
+  SWIPE_THRESHOLD,
+  HAPTIC_DURATION 
+} from './utils/constants';
+import { DUMMY_WORKOUT_HISTORY } from './data/dummyData';
 import './App.css';
 
-// Constants
-const PLATE_WEIGHTS_LBS = [45, 25, 10, 5, 2.5];
-const PLATE_WEIGHTS_KG = [25, 20, 15, 10, 5, 2.5, 1.25];
-const BARBELL_OPTIONS = {
-  lbs: [
-    { weight: 45, label: 'Olympic Barbell (45 lbs)' },
-    { weight: 35, label: 'Women\'s Olympic Barbell (35 lbs)' },
-    { weight: 15, label: 'Training Bar (15 lbs)' }
-  ],
-  kg: [
-    { weight: 20, label: 'Olympic Barbell (20 kg)' },
-    { weight: 15, label: 'Women\'s Olympic Barbell (15 kg)' },
-    { weight: 10, label: 'Training Bar (10 kg)' }
-  ]
-};
-const WEIGHT_INCREMENT_LBS = 2.5;
-const WEIGHT_INCREMENT_KG = 1.25;
-const SWIPE_THRESHOLD = 50;
-const HAPTIC_DURATION = 50;
-
-// Conversion functions
-const lbsToKg = (lbs) => Math.round((lbs * 0.453592) * 100) / 100;
-const kgToLbs = (kg) => Math.round((kg * 2.20462) * 100) / 100;
-
-const formatWeight = (weight, unit) => {
-  return unit === 'kg' ? weight.toFixed(2) : weight.toString();
-};
-
 const WeightCalculator = () => {
-  const [targetWeight, setTargetWeight] = useState('');
+  // Calculator state
+  const [targetWeight, setTargetWeight] = useState(BARBELL_OPTIONS.lbs[0].weight.toString());
   const [result, setResult] = useState(null);
   const [previousResult, setPreviousResult] = useState(null);
   const [showPrevious, setShowPrevious] = useState(false);
   const [error, setError] = useState('');
+  
+  // UI state
   const [darkMode, setDarkMode] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
   const [unit, setUnit] = useState('lbs');
   const [selectedBarbell, setSelectedBarbell] = useState(BARBELL_OPTIONS.lbs[0]);
+  const [activeTab, setActiveTab] = useState('calculator');
+  
+  // Workout state
+  const [workoutHistory, setWorkoutHistory] = useState(DUMMY_WORKOUT_HISTORY);
+  const [showHistory, setShowHistory] = useState(false);
+  const [workoutForm, setWorkoutForm] = useState({
+    exercise: '',
+    weight: '',
+    sets: '',
+    reps: '',
+    notes: ''
+  });
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
@@ -47,7 +48,7 @@ const WeightCalculator = () => {
       setDarkMode(savedTheme === 'dark');
     } else {
       // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
       setDarkMode(prefersDark);
     }
   }, []);
@@ -63,7 +64,9 @@ const WeightCalculator = () => {
     const savedUnit = localStorage.getItem('weightCalculatorUnit');
     if (savedUnit && ['lbs', 'kg'].includes(savedUnit)) {
       setUnit(savedUnit);
-      setSelectedBarbell(BARBELL_OPTIONS[savedUnit][0]);
+      const defaultBarbell = BARBELL_OPTIONS[savedUnit][0];
+      setSelectedBarbell(defaultBarbell);
+      setTargetWeight(formatWeight(defaultBarbell.weight, savedUnit));
     }
   }, []);
 
@@ -95,6 +98,7 @@ const WeightCalculator = () => {
 
   const handleBarbellChange = (barbell) => {
     setSelectedBarbell(barbell);
+    setTargetWeight(formatWeight(barbell.weight, unit));
   };
 
   const incrementWeight = useCallback(() => {
@@ -113,7 +117,7 @@ const WeightCalculator = () => {
     setError('');
   }, [targetWeight, unit]);
 
-  // Keyboard shortcuts - moved after function definitions
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (e.target.tagName === 'INPUT') return; // Don't interfere with input
@@ -131,6 +135,7 @@ const WeightCalculator = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [incrementWeight, decrementWeight]);
 
+  // Touch/swipe handlers
   const handleSwipe = useCallback((direction) => {
     if (direction === 'left') {
       decrementWeight();
@@ -169,6 +174,7 @@ const WeightCalculator = () => {
     setTouchStart(null);
   }, [touchStart, handleSwipe]);
 
+  // Plate calculation function
   const calculatePlates = useCallback((targetWeight) => {
     const plateWeights = unit === 'lbs' ? PLATE_WEIGHTS_LBS : PLATE_WEIGHTS_KG;
     const barbellWeight = selectedBarbell.weight;
@@ -220,35 +226,10 @@ const WeightCalculator = () => {
     };
   }, [unit, selectedBarbell]);
 
-  const validateWeight = (weight) => {
-    const num = parseFloat(weight);
-    if (isNaN(num) || num <= 0) {
-      return 'Please enter a valid positive number';
-    }
-    
-    if (weight.includes('.')) {
-      const decimalPart = weight.split('.')[1];
-      if (unit === 'lbs') {
-        if (decimalPart.length !== 1) {
-          return 'Please enter exactly one decimal place (e.g., 5.0 or 5.5)';
-        }
-        if (!['0', '5'].includes(decimalPart)) {
-          return 'Decimal place must be .0 or .5 (e.g., 5.0 or 5.5)';
-        }
-      } else {
-        // For kg, allow up to 2 decimal places
-        if (decimalPart.length > 2) {
-          return 'Please enter up to two decimal places (e.g., 5.00 or 5.25)';
-        }
-      }
-    }
-    
-    return null;
-  };
-
+  // Form submission handler
   const handleSubmit = (e) => {
     e.preventDefault();
-    const validationError = validateWeight(targetWeight);
+    const validationError = validateWeight(targetWeight, unit);
     
     if (validationError) {
       setError(validationError);
@@ -266,52 +247,65 @@ const WeightCalculator = () => {
     setResult(newResult);
   };
 
-  const ResultDisplay = React.memo(({ result, title }) => {
-    const unitLabel = result.unit || unit;
-    return (
-      <div className="result-container">
-        <h3>{title}</h3>
-        <div className="result-header">
-          <p><strong>Target Weight:</strong> {formatWeight(result.targetWeight, unitLabel)} {unitLabel}</p>
-          <p><strong>Actual Weight:</strong> {formatWeight(result.actualWeight, unitLabel)} {unitLabel}</p>
-          {result.exactMatch ? (
-            <p className="exact-match">✓ Exact match achieved!</p>
-          ) : (
-            <p className="difference">
-              ✗ Difference: {formatWeight(Math.abs(result.actualWeight - result.targetWeight), unitLabel)} {unitLabel}
-            </p>
-          )}
-        </div>
-        
-        <div className="weight-breakdown">
-          <p><strong>Barbell Weight:</strong> {formatWeight(result.barbellWeight, unitLabel)} {unitLabel}</p>
-          <p><strong>Plate Weight:</strong> {formatWeight(result.plateWeight, unitLabel)} {unitLabel}</p>
-          <p><strong>Total Plates Needed:</strong> {result.totalPlates}</p>
-        </div>
+  // Workout form handlers
+  const handleWorkoutSubmit = (e) => {
+    e.preventDefault();
+    if (!workoutForm.exercise || !workoutForm.sets || !workoutForm.reps || (!workoutForm.weight && !targetWeight)) {
+      return; // Basic validation
+    }
 
-        {result.totalPlates > 0 ? (
-          <div className="plate-breakdown">
-            <h4>Plate Breakdown:</h4>
-            <ul>
-              {Object.entries(result.plateBreakdown).map(([weight, count]) => {
-                if (count > 0) {
-                  const totalWeight = parseFloat(weight) * count;
-                  return (
-                    <li key={weight}>
-                      {formatWeight(parseFloat(weight), unitLabel)} {unitLabel} plates: {count} × {formatWeight(parseFloat(weight), unitLabel)} = {formatWeight(totalWeight, unitLabel)} {unitLabel}
-                    </li>
-                  );
-                }
-                return null;
-              })}
-            </ul>
-          </div>
-        ) : (
-          <p className="no-plates">No additional plates needed - barbell weight only!</p>
-        )}
-      </div>
-    );
-  });
+    const newWorkout = {
+      id: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      exercise: workoutForm.exercise,
+      targetWeight: parseFloat(workoutForm.weight) || parseFloat(targetWeight),
+      actualWeight: parseFloat(workoutForm.weight) || (result ? result.actualWeight : parseFloat(targetWeight)),
+      unit: unit,
+      barbell: selectedBarbell.label,
+      sets: parseInt(workoutForm.sets),
+      reps: parseInt(workoutForm.reps),
+      completed: true,
+      notes: workoutForm.notes
+    };
+
+    setWorkoutHistory([newWorkout, ...workoutHistory]);
+    setWorkoutForm({ exercise: '', weight: '', sets: '', reps: '', notes: '' });
+  };
+
+  const updateWorkoutForm = (field, value) => {
+    setWorkoutForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Increment/decrement functions for workout form
+  const incrementWorkoutField = (field) => {
+    let newValue;
+    
+    if (field === 'weight') {
+      const currentValue = parseFloat(workoutForm[field]) || 0;
+      const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
+      newValue = currentValue + increment;
+      setWorkoutForm(prev => ({ ...prev, [field]: formatWeight(newValue, unit) }));
+    } else {
+      const currentValue = parseInt(workoutForm[field]) || 0;
+      newValue = currentValue + 1;
+      setWorkoutForm(prev => ({ ...prev, [field]: newValue.toString() }));
+    }
+  };
+
+  const decrementWorkoutField = (field) => {
+    let newValue;
+    
+    if (field === 'weight') {
+      const currentValue = parseFloat(workoutForm[field]) || 0;
+      const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
+      newValue = Math.max(0, currentValue - increment);
+      setWorkoutForm(prev => ({ ...prev, [field]: formatWeight(newValue, unit) }));
+    } else {
+      const currentValue = parseInt(workoutForm[field]) || 0;
+      newValue = Math.max(1, currentValue - 1); // Don't go below 1 for sets/reps
+      setWorkoutForm(prev => ({ ...prev, [field]: newValue.toString() }));
+    }
+  };
 
   return (
     <div className="weight-calculator">
@@ -334,81 +328,127 @@ const WeightCalculator = () => {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="calculator-form">
-        <div className="input-group">
-          <label htmlFor="barbell-select">
-            Select Barbell:
-          </label>
-          <select 
-            id="barbell-select" 
-            value={selectedBarbell.weight} 
-            onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
-            className="barbell-select"
-          >
-            {BARBELL_OPTIONS[unit].map(barbell => (
-              <option key={barbell.weight} value={barbell.weight}>
-                {barbell.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="input-group">
-          <label htmlFor="weight">
-            Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
-          </label>
-          <div className="input-with-controls">
-            <button 
-              type="button" 
-              className="increment-btn decrement" 
-              onClick={decrementWeight}
-              aria-label={`Decrease weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-              title={`Decrease by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-            >
-              −
-            </button>
-            <input
-              type="text"
-              id="weight"
-              value={targetWeight}
-              onChange={(e) => setTargetWeight(e.target.value)}
-              placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
-              className={error ? 'error' : ''}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-            />
-            <button 
-              type="button" 
-              className="increment-btn increment" 
-              onClick={incrementWeight}
-              aria-label={`Increase weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-              title={`Increase by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-            >
-              +
-            </button>
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button 
+          className={`tab-button ${activeTab === 'calculator' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calculator')}
+        >
+          <span className="tab-icon">⚖️</span>
+          <span className="tab-label">Plate Calculator</span>
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'logger' ? 'active' : ''}`}
+          onClick={() => setActiveTab('logger')}
+        >
+          <span className="tab-icon">📝</span>
+          <span className="tab-label">Workout Logger</span>
+        </button>
+        <div className={`tab-indicator ${activeTab}`}></div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="tab-content">
+        {activeTab === 'calculator' && (
+          <div className="calculator-tab">
+            <form onSubmit={handleSubmit} className="calculator-form">
+              <div className="input-group">
+                <label htmlFor="barbell-select">
+                  Select Barbell:
+                </label>
+                <select 
+                  id="barbell-select" 
+                  value={selectedBarbell.weight} 
+                  onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
+                  className="barbell-select"
+                >
+                  {BARBELL_OPTIONS[unit].map(barbell => (
+                    <option key={barbell.weight} value={barbell.weight}>
+                      {barbell.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="weight">
+                  Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
+                </label>
+                <div className="input-with-controls">
+                  <button 
+                    type="button" 
+                    className="increment-btn decrement" 
+                    onClick={decrementWeight}
+                    aria-label={`Decrease weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                    title={`Decrease by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="text"
+                    id="weight"
+                    value={targetWeight}
+                    onChange={(e) => setTargetWeight(e.target.value)}
+                    placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
+                    className={error ? 'error' : ''}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                  />
+                  <button 
+                    type="button" 
+                    className="increment-btn increment" 
+                    onClick={incrementWeight}
+                    aria-label={`Increase weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                    title={`Increase by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                  >
+                    +
+                  </button>
+                </div>
+                {error && <p className="error-message">{error}</p>}
+              </div>
+              <button type="submit" className="calculate-btn">Calculate Plates</button>
+            </form>
+
+            {result && <ResultDisplay result={result} title="Current Result" />}
+
+            {previousResult && (
+              <div className="previous-result">
+                <button 
+                  className="toggle-previous"
+                  onClick={() => setShowPrevious(!showPrevious)}
+                >
+                  {showPrevious ? '▼' : '▶'} Previous Result
+                </button>
+                
+                {showPrevious && (
+                  <div className="previous-result-content">
+                    <ResultDisplay result={previousResult} title="Previous Result" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {error && <p className="error-message">{error}</p>}
-        </div>
-        <button type="submit" className="calculate-btn">Calculate Plates</button>
-      </form>
+        )}
 
-      {result && <ResultDisplay result={result} title="Current Result" />}
-
-      {previousResult && (
-        <div className="previous-result">
-          <button 
-            className="toggle-previous"
-            onClick={() => setShowPrevious(!showPrevious)}
-          >
-            {showPrevious ? '▼' : '▶'} Previous Result
-          </button>
-          
-          {showPrevious && (
-            <div className="previous-result-content">
-              <ResultDisplay result={previousResult} title="Previous Result" />
-            </div>
-          )}
-        </div>
-      )}
+        {activeTab === 'logger' && (
+          <div className="logger-tab">
+            <WorkoutLoggerForm 
+              workoutForm={workoutForm}
+              onFormSubmit={handleWorkoutSubmit}
+              onFormUpdate={updateWorkoutForm}
+              onIncrementField={incrementWorkoutField}
+              onDecrementField={decrementWorkoutField}
+              unit={unit}
+              targetWeight={targetWeight}
+              selectedBarbell={selectedBarbell}
+            />
+            <WorkoutHistory 
+              workoutHistory={workoutHistory}
+              showHistory={showHistory}
+              onToggleHistory={() => setShowHistory(!showHistory)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
