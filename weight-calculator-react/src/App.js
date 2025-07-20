@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ResultDisplay from './components/ResultDisplay';
 import WorkoutLoggerForm from './components/WorkoutLogger';
 import WorkoutHistory from './components/WorkoutHistory';
+import DataManager from './components/DataManager';
 import { formatWeight, validateWeight, lbsToKg, kgToLbs } from './utils/weightUtils';
 import { 
   PLATE_WEIGHTS_LBS, 
@@ -12,7 +13,7 @@ import {
   SWIPE_THRESHOLD,
   HAPTIC_DURATION 
 } from './utils/constants';
-import { DUMMY_WORKOUT_HISTORY } from './data/dummyData';
+import { dataServiceFactory } from './services/dataServiceFactory';
 import './App.css';
 
 const WeightCalculator = () => {
@@ -31,7 +32,7 @@ const WeightCalculator = () => {
   const [activeTab, setActiveTab] = useState('calculator');
   
   // Workout state
-  const [workoutHistory, setWorkoutHistory] = useState(DUMMY_WORKOUT_HISTORY);
+  const [workoutHistory, setWorkoutHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [workoutForm, setWorkoutForm] = useState({
     exercise: '',
@@ -40,40 +41,73 @@ const WeightCalculator = () => {
     reps: '',
     notes: ''
   });
+  
+  // Data service state
+  const [dataService, setDataService] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dataError, setDataError] = useState(null);
 
-  // Load theme preference from localStorage on mount
+  // Initialize data service and load data
   useEffect(() => {
-    const savedTheme = localStorage.getItem('weightCalculatorTheme');
-    if (savedTheme) {
-      setDarkMode(savedTheme === 'dark');
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
-      setDarkMode(prefersDark);
-    }
+    const initializeApp = async () => {
+      try {
+        setIsLoading(true);
+        setDataError(null);
+        
+        // Initialize data service
+        const service = await dataServiceFactory.initialize();
+        setDataService(service);
+        
+        // Load user preferences
+        const preferences = await service.getPreferences();
+        setUnit(preferences.unit);
+        setDarkMode(preferences.theme === 'dark');
+        setSelectedBarbell(preferences.defaultBarbell);
+        setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
+        
+        // Load workout history
+        const history = await service.getWorkoutHistory();
+        setWorkoutHistory(history);
+        
+      } catch (error) {
+        console.error('App initialization failed:', error);
+        setDataError('Failed to load data. Using default settings.');
+        
+        // Fallback to system preferences
+        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
+        setDarkMode(prefersDark);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initializeApp();
   }, []);
 
-  // Update document class and localStorage when theme changes
+  // Update document class and save preferences when theme changes
   useEffect(() => {
     document.documentElement.className = darkMode ? 'dark-theme' : 'light-theme';
-    localStorage.setItem('weightCalculatorTheme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
-
-  // Load unit preference from localStorage
-  useEffect(() => {
-    const savedUnit = localStorage.getItem('weightCalculatorUnit');
-    if (savedUnit && ['lbs', 'kg'].includes(savedUnit)) {
-      setUnit(savedUnit);
-      const defaultBarbell = BARBELL_OPTIONS[savedUnit][0];
-      setSelectedBarbell(defaultBarbell);
-      setTargetWeight(formatWeight(defaultBarbell.weight, savedUnit));
+    
+    if (dataService) {
+      dataService.getPreferences().then(prefs => {
+        dataService.savePreferences({ ...prefs, theme: darkMode ? 'dark' : 'light' })
+          .catch(error => console.error('Error saving theme preference:', error));
+      });
     }
-  }, []);
+  }, [darkMode, dataService]);
 
-  // Update localStorage when unit changes
+  // Save preferences when unit or barbell changes
   useEffect(() => {
-    localStorage.setItem('weightCalculatorUnit', unit);
-  }, [unit]);
+    if (dataService) {
+      dataService.getPreferences().then(prefs => {
+        dataService.savePreferences({ 
+          ...prefs, 
+          unit,
+          defaultBarbell: selectedBarbell
+        }).catch(error => console.error('Error saving preferences:', error));
+      });
+    }
+  }, [unit, selectedBarbell, dataService]);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -248,28 +282,41 @@ const WeightCalculator = () => {
   };
 
   // Workout form handlers
-  const handleWorkoutSubmit = (e) => {
+  const handleWorkoutSubmit = async (e) => {
     e.preventDefault();
     if (!workoutForm.exercise || !workoutForm.sets || !workoutForm.reps || (!workoutForm.weight && !targetWeight)) {
       return; // Basic validation
     }
 
-    const newWorkout = {
-      id: Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      exercise: workoutForm.exercise,
-      targetWeight: parseFloat(workoutForm.weight) || parseFloat(targetWeight),
-      actualWeight: parseFloat(workoutForm.weight) || (result ? result.actualWeight : parseFloat(targetWeight)),
-      unit: unit,
-      barbell: selectedBarbell.label,
-      sets: parseInt(workoutForm.sets),
-      reps: parseInt(workoutForm.reps),
-      completed: true,
-      notes: workoutForm.notes
-    };
+    if (!dataService) {
+      setError('Data service not available');
+      return;
+    }
 
-    setWorkoutHistory([newWorkout, ...workoutHistory]);
-    setWorkoutForm({ exercise: '', weight: '', sets: '', reps: '', notes: '' });
+    try {
+      const newWorkout = {
+        // ID will be generated by DataTransformers.normalizeWorkout
+        date: new Date().toISOString().split('T')[0],
+        exercise: workoutForm.exercise,
+        targetWeight: parseFloat(workoutForm.weight) || parseFloat(targetWeight),
+        actualWeight: parseFloat(workoutForm.weight) || (result ? result.actualWeight : parseFloat(targetWeight)),
+        unit: unit,
+        barbell: selectedBarbell.label,
+        sets: parseInt(workoutForm.sets),
+        reps: parseInt(workoutForm.reps),
+        completed: true,
+        notes: workoutForm.notes
+      };
+
+      await dataService.saveWorkout(newWorkout);
+      const updatedHistory = await dataService.getWorkoutHistory();
+      setWorkoutHistory(updatedHistory);
+      setWorkoutForm({ exercise: '', weight: '', sets: '', reps: '', notes: '' });
+      setError('');
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      setError('Failed to save workout');
+    }
   };
 
   const updateWorkoutForm = (field, value) => {
@@ -307,8 +354,42 @@ const WeightCalculator = () => {
     }
   };
 
+  // Data change handler for when data is imported/cleared
+  const handleDataChange = async () => {
+    if (dataService) {
+      try {
+        const history = await dataService.getWorkoutHistory();
+        setWorkoutHistory(history);
+        const preferences = await dataService.getPreferences();
+        setUnit(preferences.unit);
+        setDarkMode(preferences.theme === 'dark');
+        setSelectedBarbell(preferences.defaultBarbell);
+        setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
+      } catch (error) {
+        console.error('Error refreshing data after change:', error);
+      }
+    }
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="weight-calculator">
+        <div className="loading-container">
+          <h2>Loading Weight Calculator...</h2>
+          <p>Initializing data service...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="weight-calculator">
+      {dataError && (
+        <div className="error-banner">
+          <p>⚠️ {dataError}</p>
+        </div>
+      )}
       <header className="calculator-header">
         <div className="header-content">
           <div className="header-text">
@@ -344,6 +425,13 @@ const WeightCalculator = () => {
           <span className="tab-icon">📝</span>
           <span className="tab-label">Workout Logger</span>
         </button>
+        <button 
+          className={`tab-button ${activeTab === 'data' ? 'active' : ''}`}
+          onClick={() => setActiveTab('data')}
+        >
+          <span className="tab-icon">💾</span>
+          <span className="tab-label">Data Manager</span>
+        </button>
         <div className={`tab-indicator ${activeTab}`}></div>
       </div>
 
@@ -353,11 +441,11 @@ const WeightCalculator = () => {
           <div className="calculator-tab">
             <form onSubmit={handleSubmit} className="calculator-form">
               <div className="input-group">
-                <label htmlFor="barbell-select">
+                <label htmlFor="calculator-barbell-select">
                   Select Barbell:
                 </label>
                 <select 
-                  id="barbell-select" 
+                  id="calculator-barbell-select" 
                   value={selectedBarbell.weight} 
                   onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
                   className="barbell-select"
@@ -370,7 +458,7 @@ const WeightCalculator = () => {
                 </select>
               </div>
               <div className="input-group">
-                <label htmlFor="weight">
+                <label htmlFor="calculator-weight">
                   Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
                 </label>
                 <div className="input-with-controls">
@@ -385,7 +473,7 @@ const WeightCalculator = () => {
                   </button>
                   <input
                     type="text"
-                    id="weight"
+                    id="calculator-weight"
                     value={targetWeight}
                     onChange={(e) => setTargetWeight(e.target.value)}
                     placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
@@ -446,6 +534,12 @@ const WeightCalculator = () => {
               showHistory={showHistory}
               onToggleHistory={() => setShowHistory(!showHistory)}
             />
+          </div>
+        )}
+
+        {activeTab === 'data' && (
+          <div className="data-tab">
+            <DataManager onDataChange={handleDataChange} />
           </div>
         )}
       </div>

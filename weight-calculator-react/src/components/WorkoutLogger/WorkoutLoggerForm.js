@@ -19,9 +19,9 @@ const WorkoutLoggerForm = React.memo(({
       <form onSubmit={onFormSubmit} className="workout-form">
         <div className="form-row">
           <div className="input-group">
-            <label htmlFor="exercise">Exercise:</label>
+            <label htmlFor="logger-exercise">Exercise:</label>
             <select
-              id="exercise"
+              id="logger-exercise"
               value={workoutForm.exercise}
               onChange={(e) => onFormUpdate('exercise', e.target.value)}
               className="workout-select"
@@ -37,7 +37,7 @@ const WorkoutLoggerForm = React.memo(({
 
         <div className="form-row">
           <div className="input-group">
-            <label htmlFor="weight">Weight ({unit}):</label>
+            <label htmlFor="logger-weight">Weight ({unit}):</label>
             <div className="input-with-controls">
               <button 
                 type="button" 
@@ -49,7 +49,7 @@ const WorkoutLoggerForm = React.memo(({
               </button>
               <input
                 type="text"
-                id="weight"
+                id="logger-weight"
                 value={workoutForm.weight}
                 onChange={(e) => onFormUpdate('weight', e.target.value)}
                 placeholder={`Current: ${targetWeight || selectedBarbell.weight} ${unit}`}
@@ -69,7 +69,7 @@ const WorkoutLoggerForm = React.memo(({
 
         <div className="form-row">
           <div className="input-group">
-            <label htmlFor="sets">Sets:</label>
+            <label htmlFor="logger-sets">Sets:</label>
             <div className="input-with-controls">
               <button 
                 type="button" 
@@ -81,7 +81,7 @@ const WorkoutLoggerForm = React.memo(({
               </button>
               <input
                 type="number"
-                id="sets"
+                id="logger-sets"
                 value={workoutForm.sets}
                 onChange={(e) => onFormUpdate('sets', e.target.value)}
                 min="1"
@@ -100,7 +100,7 @@ const WorkoutLoggerForm = React.memo(({
             </div>
           </div>
           <div className="input-group">
-            <label htmlFor="reps">Reps:</label>
+            <label htmlFor="logger-reps">Reps:</label>
             <div className="input-with-controls">
               <button 
                 type="button" 
@@ -112,7 +112,7 @@ const WorkoutLoggerForm = React.memo(({
               </button>
               <input
                 type="number"
-                id="reps"
+                id="logger-reps"
                 value={workoutForm.reps}
                 onChange={(e) => onFormUpdate('reps', e.target.value)}
                 min="1"
@@ -134,9 +134,9 @@ const WorkoutLoggerForm = React.memo(({
 
         <div className="form-row">
           <div className="input-group">
-            <label htmlFor="notes">Notes (optional):</label>
+            <label htmlFor="logger-notes">Notes (optional):</label>
             <textarea
-              id="notes"
+              id="logger-notes"
               value={workoutForm.notes}
               onChange={(e) => onFormUpdate('notes', e.target.value)}
               placeholder="How did it feel? Any observations..."
