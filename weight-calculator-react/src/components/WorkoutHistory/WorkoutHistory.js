@@ -64,7 +64,7 @@ WorkoutHistory.displayName = 'WorkoutHistory';
 WorkoutHistory.propTypes = {
   workoutHistory: PropTypes.arrayOf(
     PropTypes.shape({
-      id: PropTypes.number.isRequired,
+      id: PropTypes.string.isRequired,
       date: PropTypes.string.isRequired,
       exercise: PropTypes.string.isRequired,
       targetWeight: PropTypes.number.isRequired,

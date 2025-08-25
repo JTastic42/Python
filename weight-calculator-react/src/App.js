@@ -3,6 +3,7 @@ import ResultDisplay from './components/ResultDisplay';
 import WorkoutLoggerForm from './components/WorkoutLogger';
 import WorkoutHistory from './components/WorkoutHistory';
 import DataManager from './components/DataManager';
+import { UserSelector, UserSwitcher } from './components/UserProfile';
 import { formatWeight, validateWeight, lbsToKg, kgToLbs } from './utils/weightUtils';
 import { 
   PLATE_WEIGHTS_LBS, 
@@ -14,6 +15,7 @@ import {
   HAPTIC_DURATION 
 } from './utils/constants';
 import { dataServiceFactory } from './services/dataServiceFactory';
+import { userService } from './services/userService';
 import './App.css';
 
 const WeightCalculator = () => {
@@ -47,41 +49,95 @@ const WeightCalculator = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dataError, setDataError] = useState(null);
 
-  // Initialize data service and load data
+  // User state
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showUserSelector, setShowUserSelector] = useState(false);
+  const [userLoading, setUserLoading] = useState(true);
+
+  // Initialize data service for specific user
+  const initializeDataService = useCallback(async (userId) => {
+    try {
+      setIsLoading(true);
+      setDataError(null);
+      
+      // Clear existing workout history and form immediately to prevent showing wrong user's data
+      setWorkoutHistory([]);
+      setWorkoutForm({
+        exercise: '',
+        weight: '',
+        sets: '',
+        reps: '',
+        notes: ''
+      });
+      setResult(null);
+      setPreviousResult(null);
+      
+      // Initialize or switch data service with user ID
+      let service;
+      if (dataService && dataServiceFactory.getServiceInfo().initialized) {
+        // Switch existing service to new user
+        service = await dataServiceFactory.switchUser(userId);
+      } else {
+        // Initialize new service
+        service = await dataServiceFactory.initialize(null, userId);
+      }
+      setDataService(service);
+      
+      // Load user preferences
+      const preferences = await service.getPreferences();
+      setUnit(preferences.unit);
+      setDarkMode(preferences.theme === 'dark');
+      setSelectedBarbell(preferences.defaultBarbell);
+      setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
+      
+      // Load workout history for new user
+      const history = await service.getWorkoutHistory();
+      console.log(`Loaded ${history.length} workouts for user: ${userId}`);
+      setWorkoutHistory(history);
+      
+    } catch (error) {
+      console.error('Data service initialization failed:', error);
+      setDataError('Failed to load user data. Using default settings.');
+      
+      // Fallback to system preferences
+      const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
+      setDarkMode(prefersDark);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataService]);
+
+  // Initialize user service and check for current user
   useEffect(() => {
-    const initializeApp = async () => {
+    const initializeUser = async () => {
       try {
-        setIsLoading(true);
+        setUserLoading(true);
         setDataError(null);
         
-        // Initialize data service
-        const service = await dataServiceFactory.initialize();
-        setDataService(service);
+        // Check for existing current user
+        const existingUser = await userService.getCurrentUser();
         
-        // Load user preferences
-        const preferences = await service.getPreferences();
-        setUnit(preferences.unit);
-        setDarkMode(preferences.theme === 'dark');
-        setSelectedBarbell(preferences.defaultBarbell);
-        setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
-        
-        // Load workout history
-        const history = await service.getWorkoutHistory();
-        setWorkoutHistory(history);
-        
+        if (existingUser && existingUser.isActive) {
+          setCurrentUser(existingUser);
+          await initializeDataService(existingUser.id);
+        } else {
+          // No current user - show user selector
+          setShowUserSelector(true);
+          
+          // Check if we have legacy data to migrate
+          if (dataServiceFactory.hasLegacyData()) {
+            console.log('Legacy data found - will migrate after user selection');
+          }
+        }
       } catch (error) {
-        console.error('App initialization failed:', error);
-        setDataError('Failed to load data. Using default settings.');
-        
-        // Fallback to system preferences
-        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
-        setDarkMode(prefersDark);
+        console.error('User initialization failed:', error);
+        setDataError('Failed to initialize user system. Please refresh the page.');
       } finally {
-        setIsLoading(false);
+        setUserLoading(false);
       }
     };
-    
-    initializeApp();
+
+    initializeUser();
   }, []);
 
   // Update document class and save preferences when theme changes
@@ -293,6 +349,11 @@ const WeightCalculator = () => {
       return;
     }
 
+    if (!currentUser) {
+      setError('No user selected. Please select a user first.');
+      return;
+    }
+
     try {
       const newWorkout = {
         // ID will be generated by DataTransformers.normalizeWorkout
@@ -305,8 +366,11 @@ const WeightCalculator = () => {
         sets: parseInt(workoutForm.sets),
         reps: parseInt(workoutForm.reps),
         completed: true,
-        notes: workoutForm.notes
+        notes: workoutForm.notes,
+        userId: currentUser.id // Add user ID for verification
       };
+      
+      console.log(`Saving workout for user: ${currentUser.name} (${currentUser.id})`);
 
       await dataService.saveWorkout(newWorkout);
       const updatedHistory = await dataService.getWorkoutHistory();
@@ -354,9 +418,54 @@ const WeightCalculator = () => {
     }
   };
 
+  // User selection handler
+  const handleUserSelect = useCallback(async (user) => {
+    try {
+      setUserLoading(true);
+      
+      // Set as current user in userService
+      await userService.setCurrentUser(user);
+      setCurrentUser(user);
+      
+      // Check for legacy data migration
+      const hasLegacy = dataServiceFactory.hasLegacyData();
+      if (hasLegacy) {
+        console.log('Migrating legacy data to user:', user.name);
+        const migrated = await dataServiceFactory.migrateLegacyData(user.id);
+        if (migrated) {
+          console.log('Legacy data migration completed');
+        }
+      }
+      
+      // Initialize data service for this user
+      await initializeDataService(user.id);
+      
+      setShowUserSelector(false);
+    } catch (error) {
+      console.error('Error selecting user:', error);
+      setDataError('Failed to switch user. Please try again.');
+    } finally {
+      setUserLoading(false);
+    }
+  }, [initializeDataService]);
+
+  // User switching handler
+  const handleSwitchUser = useCallback(() => {
+    setShowUserSelector(true);
+  }, []);
+
+  // Close user selector handler
+  const handleCloseUserSelector = useCallback(() => {
+    if (!currentUser) {
+      // If no user is selected, we can't close the selector
+      return;
+    }
+    setShowUserSelector(false);
+  }, [currentUser]);
+
   // Data change handler for when data is imported/cleared
   const handleDataChange = async () => {
-    if (dataService) {
+    if (dataService && currentUser) {
       try {
         const history = await dataService.getWorkoutHistory();
         setWorkoutHistory(history);
@@ -371,13 +480,24 @@ const WeightCalculator = () => {
     }
   };
 
-  // Show loading state
-  if (isLoading) {
+  // Show loading states
+  if (userLoading) {
     return (
       <div className="weight-calculator">
         <div className="loading-container">
           <h2>Loading Weight Calculator...</h2>
-          <p>Initializing data service...</p>
+          <p>Initializing user system...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && currentUser) {
+    return (
+      <div className="weight-calculator">
+        <div className="loading-container">
+          <h2>Loading {currentUser.name}'s Data...</h2>
+          <p>Setting up your workout environment...</p>
         </div>
       </div>
     );
@@ -399,6 +519,10 @@ const WeightCalculator = () => {
             <p>Available plates: {unit === 'lbs' ? '45, 25, 10, 5, 2.5' : '25, 20, 15, 10, 5, 2.5, 1.25'} {unit}</p>
           </div>
           <div className="header-controls">
+            <UserSwitcher 
+              currentUser={currentUser}
+              onSwitchUser={handleSwitchUser}
+            />
             <button className="unit-toggle" onClick={toggleUnit} aria-label="Toggle weight unit">
               {unit.toUpperCase()}
             </button>
@@ -436,7 +560,7 @@ const WeightCalculator = () => {
       </div>
 
       {/* Tab Content */}
-      <div className="tab-content">
+      <div className="tab-content" data-active-tab={activeTab}>
         {activeTab === 'calculator' && (
           <div className="calculator-tab">
             <form onSubmit={handleSubmit} className="calculator-form">
@@ -543,6 +667,15 @@ const WeightCalculator = () => {
           </div>
         )}
       </div>
+
+      {/* User Selection Modal */}
+      {showUserSelector && (
+        <UserSelector
+          onUserSelect={handleUserSelect}
+          onClose={handleCloseUserSelector}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 };

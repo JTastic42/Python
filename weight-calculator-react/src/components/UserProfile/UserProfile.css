@@ -1,0 +1,325 @@
+/* User Profile Components Styles */
+
+.user-profile-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.user-profile-modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.user-profile-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.user-profile-header h2 {
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+}
+
+.user-profile-header p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* User Creation Form */
+.user-creation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.user-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-input-group label {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.user-input {
+  padding: 0.75rem;
+  border: 2px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.user-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.user-input.error {
+  border-color: var(--error-color);
+}
+
+.user-error-message {
+  color: var(--error-color);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.user-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.user-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-btn-primary {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.user-btn-primary:hover {
+  background: var(--accent-secondary);
+}
+
+.user-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px solid var(--border-primary);
+}
+
+.user-btn-secondary:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* User Selection */
+.user-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 2px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-item:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+}
+
+.user-item.selected {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: white;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.user-meta {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.user-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.user-action-btn {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.user-action-btn:hover {
+  opacity: 0.8;
+}
+
+.user-edit-btn {
+  background: var(--accent-secondary);
+  color: white;
+}
+
+.user-delete-btn {
+  background: var(--error-color);
+  color: white;
+}
+
+.create-user-section {
+  border-top: 1px solid var(--border-primary);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.create-user-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--accent-primary);
+  border: 2px dashed var(--accent-primary);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-user-btn:hover {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* User Switcher (Header Component) */
+.user-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+}
+
+.user-switcher:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.user-display-name {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 1;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.user-switch-icon {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+/* Loading and empty states */
+.user-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.no-users {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .user-profile-modal {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+  
+  .user-form-actions {
+    flex-direction: column;
+  }
+  
+  .user-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .user-actions {
+    align-self: flex-end;
+  }
+}
+
+/* Dark theme adjustments */
+:root.dark-theme {
+  --user-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+:root.dark-theme .user-profile-modal {
+  box-shadow: var(--user-shadow);
+}

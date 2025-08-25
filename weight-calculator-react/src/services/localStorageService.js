@@ -17,9 +17,28 @@ import {
 } from './dataService.js';
 
 export class LocalStorageService extends DataService {
-  constructor() {
+  constructor(userId = null) {
     super();
     this.isAvailable = this._checkAvailability();
+    this.userId = userId;
+  }
+
+  /**
+   * Set the current user ID for scoped operations
+   */
+  setUserId(userId) {
+    this.userId = userId;
+  }
+
+  /**
+   * Get user-scoped storage key
+   */
+  _getUserScopedKey(key) {
+    if (!this.userId) {
+      // For backward compatibility, use original keys when no user is set
+      return key;
+    }
+    return `${key}_user_${this.userId}`;
   }
 
   /**
@@ -46,7 +65,8 @@ export class LocalStorageService extends DataService {
     }
 
     try {
-      const item = localStorage.getItem(key);
+      const scopedKey = this._getUserScopedKey(key);
+      const item = localStorage.getItem(scopedKey);
       return item ? JSON.parse(item) : defaultValue;
     } catch (error) {
       console.error(`Error reading from localStorage key "${key}":`, error);
@@ -63,7 +83,8 @@ export class LocalStorageService extends DataService {
     }
 
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const scopedKey = this._getUserScopedKey(key);
+      localStorage.setItem(scopedKey, JSON.stringify(value));
       return true;
     } catch (error) {
       // Handle quota exceeded error
@@ -84,7 +105,8 @@ export class LocalStorageService extends DataService {
     }
 
     try {
-      localStorage.removeItem(key);
+      const scopedKey = this._getUserScopedKey(key);
+      localStorage.removeItem(scopedKey);
     } catch (error) {
       console.error(`Error removing localStorage key "${key}":`, error);
     }
@@ -465,7 +487,108 @@ export class LocalStorageService extends DataService {
       type: 'localStorage',
       available: this.isAvailable,
       usage: this._getStorageUsage(),
-      version: DATA_SCHEMA_VERSION
+      version: DATA_SCHEMA_VERSION,
+      userId: this.userId,
+      userScoped: !!this.userId
     };
+  }
+
+  /**
+   * Migrate legacy data to user-scoped storage
+   */
+  async migrateLegacyDataToUser(userId) {
+    if (!this.isAvailable || !userId) return false;
+
+    // Store original userId before try block
+    const originalUserId = this.userId;
+
+    try {
+      // Check if legacy data exists (data without user scope)
+      const legacyWorkouts = localStorage.getItem(STORAGE_KEYS.WORKOUT_HISTORY);
+      const legacyPreferences = localStorage.getItem(STORAGE_KEYS.USER_PREFERENCES);
+      const legacySettings = localStorage.getItem(STORAGE_KEYS.APP_SETTINGS);
+
+      let migrated = false;
+
+      // Temporarily set userId to null to get legacy keys, then migrate
+      this.userId = null;
+
+      if (legacyWorkouts) {
+        const workouts = this._getItem(STORAGE_KEYS.WORKOUT_HISTORY, []);
+        this.userId = userId; // Set user ID for scoped storage
+        this._setItem(STORAGE_KEYS.WORKOUT_HISTORY, workouts);
+        this.userId = null; // Reset to remove legacy data
+        this._removeItem(STORAGE_KEYS.WORKOUT_HISTORY);
+        migrated = true;
+        console.log(`Migrated ${workouts.length} workouts to user ${userId}`);
+      }
+
+      if (legacyPreferences) {
+        const preferences = this._getItem(STORAGE_KEYS.USER_PREFERENCES, {});
+        this.userId = userId;
+        this._setItem(STORAGE_KEYS.USER_PREFERENCES, preferences);
+        this.userId = null;
+        this._removeItem(STORAGE_KEYS.USER_PREFERENCES);
+        migrated = true;
+        console.log(`Migrated preferences to user ${userId}`);
+      }
+
+      if (legacySettings) {
+        const settings = this._getItem(STORAGE_KEYS.APP_SETTINGS, {});
+        this.userId = userId;
+        this._setItem(STORAGE_KEYS.APP_SETTINGS, settings);
+        this.userId = null;
+        this._removeItem(STORAGE_KEYS.APP_SETTINGS);
+        migrated = true;
+        console.log(`Migrated settings to user ${userId}`);
+      }
+
+      // Restore original userId
+      this.userId = originalUserId;
+
+      return migrated;
+    } catch (error) {
+      console.error('Error migrating legacy data:', error);
+      this.userId = originalUserId || null; // Ensure userId is restored on error
+      return false;
+    }
+  }
+
+  /**
+   * Check if legacy data exists (non-user-scoped)
+   */
+  hasLegacyData() {
+    if (!this.isAvailable) return false;
+
+    return !!(
+      localStorage.getItem(STORAGE_KEYS.WORKOUT_HISTORY) ||
+      localStorage.getItem(STORAGE_KEYS.USER_PREFERENCES) ||
+      localStorage.getItem(STORAGE_KEYS.APP_SETTINGS)
+    );
+  }
+
+  /**
+   * Get all user data (for backup/export)
+   */
+  async getAllUserData(userId = null) {
+    const targetUserId = userId || this.userId;
+    if (!targetUserId) {
+      throw new Error('User ID required for scoped data export');
+    }
+
+    const originalUserId = this.userId;
+    this.userId = targetUserId;
+
+    try {
+      const [workouts, preferences, settings] = await Promise.all([
+        this.getWorkoutHistory(),
+        this.getPreferences(), 
+        this.getSettings()
+      ]);
+
+      return { workouts, preferences, settings, userId: targetUserId };
+    } finally {
+      this.userId = originalUserId;
+    }
   }
 }

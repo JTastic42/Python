@@ -580,11 +580,19 @@ button:hover {
 .tab-button:hover {
   background: rgba(52, 152, 219, 0.1);
   color: var(--text-primary);
+  transform: translateY(-2px);
 }
 
 .tab-button.active {
   color: var(--border-focus);
   font-weight: 600;
+  transform: translateY(-1px);
+  background: rgba(52, 152, 219, 0.15);
+}
+
+.tab-button:active {
+  transform: translateY(0);
+  transition: transform 0.1s ease;
 }
 
 .tab-icon {
@@ -607,12 +615,17 @@ button:hover {
 
 .tab-indicator.calculator {
   left: 0;
-  width: 50%;
+  width: 33.333%;
 }
 
 .tab-indicator.logger {
-  left: 50%;
-  width: 50%;
+  left: 33.333%;
+  width: 33.333%;
+}
+
+.tab-indicator.data {
+  left: 66.666%;
+  width: 33.333%;
 }
 
 .tab-content {
@@ -621,17 +634,89 @@ button:hover {
   border-top: none;
   border-radius: 0 0 12px 12px;
   min-height: 400px;
+  overflow: hidden;
+  position: relative;
+  transition: min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s ease,
+              transform 0.3s ease;
+}
+
+/* Dynamic height adjustment based on content */
+.tab-content:has(.calculator-tab) { min-height: 500px; }
+.tab-content:has(.logger-tab) { min-height: 600px; }
+.tab-content:has(.data-tab) { min-height: 450px; }
+
+/* Fallback for browsers that don't support :has() */
+@supports not selector(:has(*)) {
+  .tab-content[data-active-tab="calculator"] { min-height: 500px; }
+  .tab-content[data-active-tab="logger"] { min-height: 600px; }
+  .tab-content[data-active-tab="data"] { min-height: 450px; }
 }
 
 .calculator-tab,
-.logger-tab {
+.logger-tab,
+.data-tab {
   padding: 0;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: tabContentSlideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes tabContentSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth container transitions with hover effects */
+.calculator-form,
+.workout-logger,
+.data-manager {
+  transform: translateY(0);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.calculator-form:hover,
+.workout-logger:hover,
+.data-manager:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px var(--shadow-medium);
+}
+
+/* Results display animation */
+.result-display {
+  animation: resultAppear 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes resultAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.9);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Workout Logger Form Styles */
 .workout-logger {
+  background: var(--bg-card);
   padding: 30px;
-  border-bottom: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 2px 15px var(--shadow-light);
+  margin-bottom: 30px;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
 }
 
 .workout-logger h3 {

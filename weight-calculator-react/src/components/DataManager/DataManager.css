@@ -1,12 +1,13 @@
 /* Data Manager Component Styles */
 .data-manager {
   max-width: 600px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background-color: var(--bg-card);
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 6px var(--shadow-light);
+  margin: 0 auto 30px auto;
+  padding: 30px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: 0 2px 15px var(--shadow-light);
   border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
 }
 
 .data-manager h3 {
@@ -171,8 +172,8 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .data-manager {
-    margin: 1rem;
-    padding: 1.5rem;
+    margin: 0 auto 30px auto;
+    padding: 20px 15px;
   }
   
   .data-actions {

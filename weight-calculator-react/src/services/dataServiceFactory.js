@@ -52,27 +52,29 @@ export class DataServiceFactory {
   constructor() {
     this.currentService = null;
     this.serviceType = null;
+    this.currentUserId = null;
   }
 
   /**
    * Initialize the data service
    * Automatically selects best available backend and handles migrations
    */
-  async initialize(preferredBackend = null) {
+  async initialize(preferredBackend = null, userId = null) {
     try {
       // Determine which backend to use
       const backend = preferredBackend || await DataMigrator.detectOptimalBackend();
       
       // Create service instance
-      this.currentService = await this._createService(backend);
+      this.currentService = await this._createService(backend, userId);
       this.serviceType = backend;
+      this.currentUserId = userId;
 
       // Check service health
       const isHealthy = await this.currentService.isHealthy();
       if (!isHealthy) {
         console.warn(`${backend} service health check failed, falling back to localStorage`);
         if (backend !== STORAGE_BACKENDS.LOCAL_STORAGE) {
-          this.currentService = await this._createService(STORAGE_BACKENDS.LOCAL_STORAGE);
+          this.currentService = await this._createService(STORAGE_BACKENDS.LOCAL_STORAGE, userId);
           this.serviceType = STORAGE_BACKENDS.LOCAL_STORAGE;
         }
       }
@@ -80,14 +82,15 @@ export class DataServiceFactory {
       // Check for data version and migrate if needed
       await this._checkAndMigrateData();
 
-      console.log(`Data service initialized with ${this.serviceType}`);
+      console.log(`Data service initialized with ${this.serviceType}${userId ? ` for user ${userId}` : ''}`);
       return this.currentService;
     } catch (error) {
       console.error('Failed to initialize data service:', error);
       
       // Fallback to localStorage
-      this.currentService = new LocalStorageService();
+      this.currentService = new LocalStorageService(userId);
       this.serviceType = STORAGE_BACKENDS.LOCAL_STORAGE;
+      this.currentUserId = userId;
       
       return this.currentService;
     }
@@ -96,10 +99,10 @@ export class DataServiceFactory {
   /**
    * Create service instance based on backend type
    */
-  async _createService(backend) {
+  async _createService(backend, userId = null) {
     switch (backend) {
       case STORAGE_BACKENDS.LOCAL_STORAGE:
-        return new LocalStorageService();
+        return new LocalStorageService(userId);
       
       case STORAGE_BACKENDS.INDEXED_DB:
         // Future implementation
@@ -153,7 +156,9 @@ export class DataServiceFactory {
     const baseInfo = {
       type: this.serviceType,
       initialized: true,
-      version: DATA_SCHEMA_VERSION
+      version: DATA_SCHEMA_VERSION,
+      userId: this.currentUserId,
+      userScoped: !!this.currentUserId
     };
 
     // Add service-specific info if available
@@ -162,6 +167,66 @@ export class DataServiceFactory {
     }
 
     return baseInfo;
+  }
+
+  /**
+   * Switch to a different user
+   */
+  async switchUser(userId) {
+    if (!this.currentService) {
+      throw new Error('No service initialized');
+    }
+
+    if (this.currentUserId === userId) {
+      console.log(`Already using user ${userId}`);
+      return this.currentService;
+    }
+
+    // Update service with new user ID
+    if (typeof this.currentService.setUserId === 'function') {
+      this.currentService.setUserId(userId);
+    } else {
+      // Recreate service with new user ID
+      this.currentService = await this._createService(this.serviceType, userId);
+    }
+
+    this.currentUserId = userId;
+    console.log(`Switched to user ${userId}`);
+    return this.currentService;
+  }
+
+  /**
+   * Check for and migrate legacy data
+   */
+  async migrateLegacyData(userId) {
+    if (!this.currentService || !userId) return false;
+
+    try {
+      if (typeof this.currentService.migrateLegacyDataToUser === 'function') {
+        return await this.currentService.migrateLegacyDataToUser(userId);
+      }
+      return false;
+    } catch (error) {
+      console.error('Legacy data migration failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if legacy data exists
+   */
+  hasLegacyData() {
+    if (!this.currentService) return false;
+
+    try {
+      if (typeof this.currentService.hasLegacyData === 'function') {
+        return this.currentService.hasLegacyData();
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking for legacy data:', error);
+      return false;
+    }
   }
 
   /**
